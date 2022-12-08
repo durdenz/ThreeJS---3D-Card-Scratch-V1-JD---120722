@@ -1,5 +1,5 @@
-import * as THREE from "https://unpkg.com/three@0.147.0/build/three.module.js";
-import { OrbitControls } from "https://unpkg.com/three@0.147.0/examples/jsm/controls/OrbitControls.js";
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 let container, scene, camera, renderer, card, controls;
 
