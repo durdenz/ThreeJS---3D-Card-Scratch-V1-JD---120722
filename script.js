@@ -1,7 +1,22 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 
-let container, scene, camera, renderer, card, controls;
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+//import { BloomPass } from 'three/addons/postprocessing/BloomPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { GammaCorrectionShader } from 'three/addons/shaders/GammaCorrectionShader.js';
+
+let container, scene, camera, renderer, card, controls, composer;
+
+const params = {
+    threshold: 2,
+    strength: .15,
+    radius: .7,
+    exposure: 3
+};
 
 var CardFrontURL = 'CardFront3.jpg'; // Assign this from Product object
 var CardBackURL = 'CardBack3.jpg'; // Assign this from Product object
@@ -13,13 +28,16 @@ var EnvNegYURL = 'StickerFront.gif'; // Environment Neg Y URL
 var EnvPosZURL = 'StickerFront.gif'; // Environment Pos Z URL
 var EnvNegZURL = 'StickerFront.gif'; // Environment Neg Z URL
 
+
+
 function init(){
-    container = document.getElementById("world");
+    container = document.getElementById("container");
    
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
     renderer = new THREE.WebGLRenderer({antialias: true});
+    renderer.setPixelRatio( window.devicePixelRatio );
     renderer.setSize(window.innerWidth, window.innerHeight);
 
     controls = new OrbitControls(camera, renderer.domElement);
@@ -30,21 +48,31 @@ function init(){
     controls.minPolarAngle = .15;
     controls.maxPolarAngle = 3.05;
     controls.enablePan = false;
+    controls.enableDamping = true;
     controls.update();
 
     container.appendChild(renderer.domElement);
  
 
     // Create Environment texture
-    var envmap = new THREE.CubeTextureLoader().load([
+    /* var envmap = new THREE.CubeTextureLoader().load([
         EnvPosXURL, EnvNegXURL,
         EnvPosYURL, EnvNegYURL,
         EnvPosZURL, EnvNegZURL
-      ], function () { console.log("envmap loaded"); });
+      ], function () { console.log("envmap loaded"); }); */
+
+      var envmap = new RGBELoader().load( 'je_gray_02_4k_Blur.hdr', function ( texture ) {
+
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+
+        texture.needsUpdate = true;
+
+    } );
     
     //create shape
-    const geometry = new THREE.BoxGeometry(1, 1.408, 0.010);
+    const geometry = new THREE.BoxGeometry(1, 1.408, 0.050);
     
+    /* -- Original Texture Creation from Images --
     const texturefront = new THREE.TextureLoader().load( CardFrontURL );
         texturefront.wrapS = THREE.RepeatWrapping;
         texturefront.wrapT = THREE.RepeatWrapping;
@@ -52,54 +80,118 @@ function init(){
         texturefront.center.set( 0.5, 0.5 );
 
     const textureback = new THREE.TextureLoader().load( CardBackURL );
-         textureback.wrapS = THREE.RepeatWrapping;
-          textureback.wrapT = THREE.RepeatWrapping;
-          textureback.repeat.set( 1, 1 );
-          textureback.center.set( 0.5, 0.5 );
+        textureback.wrapS = THREE.RepeatWrapping;
+        textureback.wrapT = THREE.RepeatWrapping;
+        textureback.repeat.set( 1, 1 );
+        textureback.center.set( 0.5, 0.5 );
+    -- End of Original Texture Creation from Images */
 
+    // Get Video Objects and start videos
+    const videoFrontBase = document.getElementById( 'videoFront-base' );
+    videoFrontBase.play();
+
+    const videoFrontRoughness = document.getElementById( 'videoFront-roughness' );
+    videoFrontRoughness.play();
+
+    const videoFrontMetallic = document.getElementById( 'videoFront-metallic' );
+    videoFrontMetallic.play();
+
+    const videoFrontEmissive = document.getElementById( 'videoFront-emissive' );
+    videoFrontEmissive.play();
+
+    const videoBackBase = document.getElementById( 'videoBack-base' );
+    videoBackBase.play();
+
+    const videoBackRoughness = document.getElementById( 'videoBack-roughness' );
+    videoBackRoughness.play();
+
+    const videoBackMetallic = document.getElementById( 'videoBack-metallic' );
+    videoBackMetallic.play();
+
+    const videoBackEmissive = document.getElementById( 'videoBack-emissive' );
+    videoBackEmissive.play();
+
+    // New Texture Creation from Video
+    const textureFront = new THREE.VideoTexture( videoFrontBase );
+    textureFront.colorSpace = THREE.SRGBColorSpace;
+
+    const textureFrontRoughness = new THREE.VideoTexture( videoFrontRoughness );
+    textureFrontRoughness.colorSpace = THREE.SRGBColorSpace;
+
+    const textureFrontMetallic = new THREE.VideoTexture( videoFrontMetallic );
+    textureFrontMetallic.colorSpace = THREE.SRGBColorSpace;
+
+    const textureFrontEmissive = new THREE.VideoTexture( videoFrontEmissive );
+    textureFrontEmissive.colorSpace = THREE.SRGBColorSpace;
+
+    const textureBack = new THREE.VideoTexture( videoBackBase );
+    textureBack.colorSpace = THREE.SRGBColorSpace;
+
+    const textureBackRoughness = new THREE.VideoTexture( videoBackRoughness );
+    textureBackRoughness.colorSpace = THREE.SRGBColorSpace;
+
+    const textureBackMetallic = new THREE.VideoTexture( videoBackMetallic );
+    textureBackMetallic.colorSpace = THREE.SRGBColorSpace;
+
+    const textureBackEmissive = new THREE.VideoTexture( videoBackEmissive );
+    textureBackEmissive.colorSpace = THREE.SRGBColorSpace;
 
     const cardMaterials = [
-        new THREE.MeshStandardMaterial({ 
-            color: 0xdedede, 
+        new THREE.MeshPhysicalMaterial({ 
+            color: 0xc48731, 
             envMap: envmap, 
-            envMapIntensity: 1,
+            envMapIntensity: 10,
+            reflectivity: 1,
             metalness : 1, 
             roughness : 0
         }), //LeftSide
-        new THREE.MeshStandardMaterial({ 
-            color: 0xdedede, 
+        new THREE.MeshPhysicalMaterial({ 
+            color: 0xc48731, 
             envMap: envmap, 
-            envMapIntensity: 1,
+            envMapIntensity: 10,
+            reflectivity: 1,
             metalness : 1, 
             roughness : 0
         }), //RightSide
-        new THREE.MeshStandardMaterial({ 
-            color: 0xdedede, 
+        new THREE.MeshPhysicalMaterial({ 
+            color: 0xc48731, 
             envMap: envmap, 
-            envMapIntensity: 1,
+            envMapIntensity: 10,
+            reflectivity: 1,
             metalness : 1, 
             roughness : 0
         }), //Top
-        new THREE.MeshStandardMaterial({ 
-            color: 0xdedede, 
+        new THREE.MeshPhysicalMaterial({ 
+            color: 0xc48731, 
             envMap: envmap, 
-            envMapIntensity: 1,
+            envMapIntensity: 10,
+            reflectivity: 1,
             metalness : 1, 
             roughness : 0
         }), //Bottom
         new THREE.MeshStandardMaterial({ 
-            map: texturefront, 
+            map: textureFront, 
             envMap: envmap, 
-            envMapIntensity: 1,
-            metalness : 1, 
-            roughness : 0 
+            envMapIntensity: .2,
+            metalness : 0, 
+            //metalnessMap : textureFrontMetallic,
+            roughness : 0.75,
+            //roughnessMap : textureFrontRoughness,
+            emissive : 0x7b03fc,
+            emissiveIntensity: 5,
+            emissiveMap : textureFrontEmissive
         }), //Front
         new THREE.MeshStandardMaterial({ 
-            map: textureback, 
+            map: textureBack, 
             envMap: envmap, 
-            envMapIntensity: 1,
-            metalness : 1, 
-            roughness : 0
+            envMapIntensity: .2,
+            metalness : 0, 
+            //metalnessMap : textureBackMetallic,
+            roughness : 0.75,
+            //roughnessMap : textureBackRoughness,
+            emissive : 0x7b03fc,
+            emissiveIntensity: 5,
+            emissiveMap : textureBackEmissive
         }), //Back
     ];
 
@@ -129,6 +221,28 @@ function init(){
     //Light Source Sky
     const light = new THREE.HemisphereLight( 0xffffff, 0x080820, .85 );
     scene.add( light );
+
+    renderer.autoClear = false;
+
+    // postprocessing
+    
+        const renderPass = new RenderPass( scene, camera );
+        //const bloomPass = new BloomPass( 0.5 );
+        const bloomPass = new UnrealBloomPass( new THREE.Vector2( window.innerWidth, window.innerHeight ), 1.5, 0.4, 0.85 );
+        bloomPass.threshold = params.threshold;
+        bloomPass.strength = params.strength;
+        bloomPass.radius = params.radius;
+
+        const outputPass = new ShaderPass( GammaCorrectionShader );
+    
+         composer = new EffectComposer( renderer );
+    
+        composer.addPass( renderPass );
+        //composer.addPass( bloomPass );
+        composer.addPass( bloomPass );
+        composer.addPass( outputPass );
+    
+    //
 }
 
 
@@ -156,8 +270,12 @@ function animate(){
     //Call Rotate Animation
     checkRotation();
 
-    renderer.render(scene, camera);
+    //renderer.render(scene, camera);
+    composer.render();
+
+    
     camera.lookAt(new THREE.Vector3(0, 0, 0));
+    
 
 }
 
