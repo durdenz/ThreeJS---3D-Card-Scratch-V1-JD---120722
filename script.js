@@ -12,7 +12,7 @@ import { GammaCorrectionShader } from 'three/addons/shaders/GammaCorrectionShade
 let container, scene, camera, renderer, card, controls, composer;
 
 const params = {
-    threshold: 2,
+    threshold: 1.5,
     strength: .15,
     radius: .7,
     exposure: 3
